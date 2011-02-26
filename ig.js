@@ -207,20 +207,57 @@ IG.provide('XD', {
         }
 
         if (window.addEventListener && !window.attachEvent && window.postMessage) {
+            IG.log('Using "postmessage" as XD transport.');
             IG.XD._origin = (window.location.protocol + '//' + window.location.host + '/' + IG.guid());
             IG.XD.PostMessage.init();
             IG.XD._transport = 'postmessage';
+        } else {
+            IG.log('Using "fragment" as XD transport.');
+            IG.XD._transport = 'fragment';
+            IG.XD.Fragment._channelUrl = window.location.toString();
         }
     },
+    resolveRelation: function (relation) {
+        var relation_chain = relation.split('.'),
+            root = window,
+            frame_match;
+
+        for (var i = 0, num_relations = relation_chain.length; i < num_relations; i++) {
+            child = relation_chain[i];
+            if (child === 'opener' || child === 'root' || child === 'top') {
+                root = root[child];
+            } else if (frame_match = /^frames\[['"]?([a-zA-Z0-9-_]+)['"]?\]$/.exec(child)) {
+                root = root.frames[frame_match[1]];
+            } else {
+                throw new SyntaxError('Malformed relation to resolve: ' + relation + ', pt: ' + child);
+            }
+        }
+
+        return root;
+    },
     handler: function (callback, relation) {
+        if (window.location.toString().indexOf(IG.XD.Fragment._magic) > 0) {
+            return 'javascript:false;//';
+        }
+
         var proxy_url = IG.getDomain('api') + 'oauth/xd_proxy/#',
             callback_guid = IG.guid();
-        // TODO: transport fragment
+
+        if (IG.XD._transport == 'fragment') {
+            proxy_url = IG.XD.Fragment._channelUrl;
+            var hash_index = proxy_url.indexOf('#');
+            if (hash_index > 0) {
+                proxy_url = proxy_url.substr(0, hash_index);
+            }
+            proxy_url += ((proxy_url.indexOf('?') < 0 ? '?' : '&') + IG.XD.Fragment._magic + '#?=&');
+        }
+
         IG.XD._callbacks[callback_guid] = callback;
         return proxy_url + IG.QS.encode({
             cb: callback_guid,
             origin: IG.XD._origin,
-            relation: relation || 'opener'
+            relation: relation || 'opener',
+            transport: IG.XD._transport
         });
     },
     recv: function (data) {
@@ -245,8 +282,23 @@ IG.provide('XD', {
         onMessage: function (event) {
             IG.XD.recv(event.data);
         }
+    },
+    Fragment: {
+        _magic: 'ig_xd_fragment',
+        checkAndDispatch: function () {
+            var url = window.location.toString(),
+                fragment = url.substr(url.indexOf('#') + 1),
+                magic_pos = url.indexOf(IG.XD.Fragment._magic);
+
+            if (magic_pos > 0) {
+                IG.init = function() {};
+                document.documentElement.style.display = 'none';
+                IG.XD.resolveRelation(IG.QS.decode(fragment).relation).IG.XD.recv(fragment);
+            }
+        }
     }
 });
+IG.XD.Fragment.checkAndDispatch();
 IG.provide('', {
     ui: function (options, callback) {
         var prepared_options = IG.UIServer.prepareCall(options, callback);
@@ -294,7 +346,12 @@ IG.provide('UIServer', {
 
         if (method.transform) {
             prepared_options = method.transform(prepared_options);
+            if (!prepared_options) {
+                IG.log('Call to "transform" in "prepareCall" failed to return options');
+                return;
+            }
         }
+
 
         var relation = IG.UIServer.getXdRelation(prepared_options.params.display);
         prepared_options.params.redirect_uri = IG.UIServer._xdResult(prepared_options.callback, prepared_options.id, relation, true);
