@@ -1,7 +1,9 @@
 The Instagram JavaScript SDK
 ============================
 A JavaScript library for the Instagram REST and Search APIs
+(currently supports authentication, authorization and persisting sessions)
 
+Take a look at the [Instadrop](https://github.com/Instagram/Instadrop) project for a implementation example.
 
 
 Follow @instagramapi on Twitter
