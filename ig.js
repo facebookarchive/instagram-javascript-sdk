@@ -1,6 +1,7 @@
 if (!window.IG) window.IG = {
     _client_id: null,
     _session: null,
+    _userStatus: 'unknown',
     _logging: false,
     _domain: {
         // api: 'https://api.instagram.com/'
@@ -49,6 +50,9 @@ if (!window.IG) window.IG = {
                 window.console.log(message);
             }
         }
+    },
+    $: function (id) {
+        return document.getElementById(id);
     }
 };
 IG.provide('Array', {
@@ -113,6 +117,105 @@ IG.provide('QS', {
         }
 
         return object;
+    }
+});
+IG.provide('Content', {
+    _root: null,
+    _hiddenRoot: null,
+    _callbacks: {},
+    append: function (element_or_html, root) {
+        if (!root) {
+            if (!IG.Content._root) {
+                IG.Content._root = root = IG.$('ig-root');
+                if (!root) {
+                    IG.log('The "ig-root" div has not been created.');
+                    return;
+                }
+            } else {
+                c = IG.Content._root;
+            }
+        }
+        if (typeof element_or_html == 'string') {
+            var div = document.createElement('div');
+            root.appendChild(div).innerHTML = element_or_html;
+            return div;
+        } else {
+            return root.appendChild(element_or_html);
+        }
+    },
+    appendHidden: function (options) {
+        if (!IG.Content._hiddenRoot) {
+            var div = document.createElement('div');
+
+            div.style.position = 'absolute';
+            div.style.top = '-10000px';
+            div.style.width = div.style.height = 0;
+
+            IG.Content._hiddenRoot = IG.Content.append(div);
+        }
+
+        return IG.Content.append(options, IG.Content._hiddenRoot);
+    },
+    insertIframe: function (options) {
+        options.id = options.id || IG.guid();
+        options.name = options.name || IG.guid();
+
+        var callback_guid = IG.guid(),
+            callback_ready = false,
+            callback_fired = false;
+
+        IG.Content._callbacks[callback_guid] = function () {
+            if (callback_ready && !callback_fired) {
+                callback_fired = true;
+                options.onload && options.onload(options.root.firstChild);
+            }
+        };
+
+        if (document.attachEvent) {
+            var html = ('<iframe' + ' id="' + options.id + '"' +
+                        ' name="' + options.name + '"' +
+                        (options.title ? ' title="' + options.title + '"' : '') +
+                        (options.className ? ' class="' + options.className + '"' : '') +
+                        ' style="border:none;' + (options.width ? 'width:' + options.width + 'px;' : '') +
+                        (options.height ? 'height:' + options.height + 'px;' : '') + '"' +
+                        ' src="' + options.url + '"' +
+                        ' frameborder="0"' +
+                        ' scrolling="no"' +
+                        ' allowtransparency="true"' +
+                        ' onload="IG.Content._callbacks.' + callback_guid + '()"' + '></iframe>');
+
+            options.root.innerHTML = '<iframe src="javascript:false"' +
+                                     ' frameborder="0"' +
+                                     ' scrolling="no"' +
+                                     ' style="height:1px"></iframe>';
+            callback_ready = true;
+            window.setTimeout(function () {
+                options.root.innerHTML = html;
+            }, 0);
+        } else {
+            var iframe = document.createElement('iframe');
+            iframe.id = options.id;
+            iframe.name = options.name;
+            iframe.onload = IG.Content._callbacks[callback_guid];
+            iframe.scrolling = 'no';
+            iframe.style.border = 'none';
+            iframe.style.overflow = 'hidden';
+            if (options.title) {
+                iframe.title = options.title;
+            }
+            if (options.className) {
+                iframe.className = options.className;
+            }
+            if (options.height) {
+                iframe.height = options.height;
+            }
+            if (options.width) {
+                iframe.width = options.width;
+            }
+            options.root.appendChild(iframe);
+            callback_ready = true;
+            iframe.src = options.url;
+        }
     }
 });
 IG.provide('JSON', {
@@ -224,7 +327,7 @@ IG.provide('XD', {
 
         for (var i = 0, num_relations = relation_chain.length; i < num_relations; i++) {
             child = relation_chain[i];
-            if (child === 'opener' || child === 'root' || child === 'top') {
+            if (child === 'opener' || child === 'parent' || child === 'top') {
                 root = root[child];
             } else if (frame_match = /^frames\[['"]?([a-zA-Z0-9-_]+)['"]?\]$/.exec(child)) {
                 root = root.frames[frame_match[1]];
@@ -331,6 +434,8 @@ IG.provide('UIServer', {
             redirect_uri: IG._redirect_uri
         });
 
+        options.display = IG.UIServer.getDisplayMode(method, options);
+
         if (!method.url) {
             method.url = 'oauth/' + method_name;
             delete options.method;
@@ -339,7 +444,7 @@ IG.provide('UIServer', {
         var prepared_options = {
             callback: callback,
             id: popup_id,
-            size: method.size,
+            size: method.size || {},
             url: IG.getDomain('api') + method.url,
             params: options
         };
@@ -352,8 +457,8 @@ IG.provide('UIServer', {
             }
         }
 
-
         var relation = IG.UIServer.getXdRelation(prepared_options.params.display);
+
         prepared_options.params.redirect_uri = IG.UIServer._xdResult(prepared_options.callback, prepared_options.id, relation, true);
 
         prepared_options.params = IG.JSON.flatten(prepared_options.params);
@@ -363,6 +468,12 @@ IG.provide('UIServer', {
         }
 
         return prepared_options;
+    },
+    getDisplayMode: function (method, options) {
+        if (options.display === 'hidden') {
+            return 'hidden';
+        }
+        return  'popup';
     },
     getXdRelation: function (display) {
         if (display === 'popup') return 'opener';
@@ -380,6 +491,29 @@ IG.provide('UIServer', {
             popupFeatures = ('width=' + popupWidth + ',height=' + popupHeight + ',left=' + popupX + ',top=' + popupY + ',scrollbars=1,location=1,toolbar=0');
         IG.log('opening popup: ' + options.id);
         IG.UIServer._active[options.id] = window.open(options.url, options.id, popupFeatures);
+    },
+    hidden: function (options) {
+        options.className = 'IG_UI_Hidden';
+        options.root = IG.Content.appendHidden('');
+        IG.UIServer._insertIframe(options);
+    },
+    _insertIframe: function (options) {
+        IG.UIServer._active[options.id] = false;
+
+        var set_callback = function (callback) {
+            if (options.id in IG.UIServer._active) {
+                IG.UIServer._active[options.id] = callback;
+            }
+        };
+
+        IG.Content.insertIframe({
+            url: options.url,
+            root: options.root,
+            className: options.className,
+            width: options.size.width,
+            height: options.size.height,
+            onload: set_callback
+        });
     },
     _xdRedirectUriHandler: function (callback, guid, relation, set_default) {
         if (set_default) {
@@ -411,11 +545,39 @@ IG.provide('UIServer', {
     }
 });
 IG.provide('', {
-    getLoginStatus: function () {
-        if (!IG.client_id) {
+    getLoginStatus: function (callback, force_recheck) {
+        if (!IG._client_id) {
             IG.log('IG.getLoginStatus() called before calling IG.init().');
             return;
         }
+
+        if (callback) {
+            if (!force_recheck && IG.Auth._loadState == 'loaded') {
+                callback({
+                    status: IG._userStatus,
+                    session: IG._session
+                });
+                return;
+            } else {
+                IG.Event.subscribe('IG.loginStatus', callback);
+            }
+        }
+
+        if (!force_recheck && IG.Auth._loadState == 'loading') {
+            return;
+        }
+
+        IG.Auth._loadState = 'loading';
+
+        var internal_callback = function (response) {
+            IG.Auth._loadState = 'loaded';
+            IG.Event.fire('IG.loginStatus', response);
+            IG.Event.clear('IG.loginStatus');
+        };
+        IG.ui({
+            method: 'auth.status',
+            display: 'hidden'
+        }, internal_callback);
     },
     login: function (callback, options) {
         IG.ui(IG.copy({
@@ -428,17 +590,23 @@ IG.provide('', {
     }
 });
 IG.provide('Auth', {
-    setSession: function (session) {
+    setSession: function (session, status) {
         var did_login = !IG._session && session,
             did_logout = IG._session && !session,
-            session_changed = did_login || did_logout || (IG._session && session && IG._session.access_token != session.access_token);
+            session_changed = did_login || did_logout || (IG._session && session && IG._session.access_token != session.access_token),
+            status_changed = status != IG._userStatus;
+
+        var session_wrapper = {session: session, status: status};
 
         IG._session = session;
-
-        var session_wrapper = {session: session};
+        IG._userStatus = status;
 
         if (session_changed && IG.Cookie.getEnabled()) {
             IG.Cookie.set(session);
+        }
+
+        if (status_changed) {
+            IG.Event.fire('auth.statusChange', session_wrapper);
         }
 
         if (did_login) {
@@ -455,16 +623,31 @@ IG.provide('Auth', {
 
         return session_wrapper;
     },
-    xdResponseWrapper: function (callback) {
+    xdHandler: function (callback, guid, relation, set_default, user_status, session_object) {
+        return IG.UIServer._xdRedirectUriHandler(IG.Auth.xdResponseWrapper(callback, user_status, session_object), guid, relation, set_default);
+    },
+    xdResponseWrapper: function (callback, user_status, session_object) {
         return function (response) {
             try {
                 session_object = IG.JSON.parse(response.session || null);
             } catch (e) {}
 
-            var session = IG.Auth.setSession(session_object || null),
-                additional_vars = ['scope', 'code', 'error', 'error_reason', 'error_description'];
+            if (session_object) {
+                user_status = 'connected';
+            }
+
+            var session = IG.Auth.setSession(session_object || null, user_status),
+                additional_vars = ['code', 'error', 'error_reason', 'error_description'];
 
             if (response) {
+                if (typeof response.scope === 'string') {
+                    try {
+                        session.scope = IG.JSON.parse(response.scope || null);
+                    } catch (e) {}
+                } else {
+                    session.scope = response.scope || null;
+                }
+
                 IG.Array.forEach(additional_vars, function (var_name) {
                     session[var_name] = response[var_name] || null;
                 });
@@ -488,11 +671,43 @@ IG.provide('UIServer.Methods', {
                 return;
             }
 
+            if (IG._session && !options.params.scope) {
+                IG.log('IG.login() called when user is already connected.');
+                if (options.callback) {
+                    options.callback({
+                        status: IG._userStatus,
+                        session: IG._session
+                    });
+                    return;
+                }
+            }
+
+            options.callback = IG.Auth.xdResponseWrapper(options.callback);
+
             if (options.params.scope) {
                 options.params.scope = IG.Array.join(options.params.scope, ' ');
             }
 
-            options.callback = IG.Auth.xdResponseWrapper(options.callback);
+            IG.copy(options.params, {
+                response_type: "token"
+            });
+
+            return options;
+        }
+    },
+    'auth.status': {
+        url: 'oauth/login_status',
+        transform: function (options) {
+            var callback = options.callback,
+                id = options.id;
+
+            delete options.callback;
+
+            IG.copy(options.params, {
+                no_session: IG.Auth.xdHandler(callback, options.id, 'parent', false, 'notConnected'),
+                no_user: IG.Auth.xdHandler(callback, options.id, 'parent', false, 'unknown'),
+                ok_session: IG.Auth.xdHandler(callback, options.id, 'parent', false, 'connected')
+            });
 
             return options;
         }
@@ -538,6 +753,11 @@ IG.provide('Cookie', {
 });
 IG.provide('', {
     init: function (settings) {
+        settings = IG.copy(settings || {}, {
+            logging: false,
+            check_status: true
+        });
+
         IG._client_id = settings.client_id;
         IG._logging = settings.logging || typeof settings.logging == 'undefined' && window.location.toString().indexOf('ig_debug=1') > 0;
 
@@ -548,6 +768,9 @@ IG.provide('', {
 
             settings.session = settings.session || settings.cookie && IG.Cookie.load();
             IG.Auth.setSession(settings.session);
+            if (settings.check_status) {
+                IG.getLoginStatus();
+            }
         }
     }
 });
