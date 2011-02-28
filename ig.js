@@ -4,13 +4,15 @@ if (!window.IG) window.IG = {
     _userStatus: 'unknown',
     _logging: false,
     _domain: {
-        // api: 'https://api.instagram.com/'
-        api: 'http://instagram.local/',
+        https_com: 'https://instagram.com/',
+        api: 'http://api.instagram.com/'
     },
     getDomain: function (site) {
         switch (site) {
+            case 'https_com':
+                return IG._domain.https_com;
             case 'api':
-            return IG._domain.api;
+                return IG._domain.api;
         }
     },
     provide: function (name, literal) {
@@ -343,7 +345,7 @@ IG.provide('XD', {
             return 'javascript:false;//';
         }
 
-        var proxy_url = IG.getDomain('api') + 'oauth/xd_proxy/#',
+        var proxy_url = IG.getDomain('https_com') + 'oauth/xd_proxy/#',
             callback_guid = IG.guid();
 
         if (IG.XD._transport == 'fragment') {
@@ -431,21 +433,16 @@ IG.provide('UIServer', {
 
         IG.copy(options, {
             client_id: IG._client_id,
-            redirect_uri: IG._redirect_uri
+            access_token: IG._session && IG._session.access_token || undefined
         });
 
         options.display = IG.UIServer.getDisplayMode(method, options);
-
-        if (!method.url) {
-            method.url = 'oauth/' + method_name;
-            delete options.method;
-        }
 
         var prepared_options = {
             callback: callback,
             id: popup_id,
             size: method.size || {},
-            url: IG.getDomain('api') + method.url,
+            url: method.url,
             params: options
         };
 
@@ -665,6 +662,7 @@ IG.provide('UIServer.Methods', {
             width: 627,
             height: 326
         },
+        url: IG.getDomain('https_com') + 'oauth/authorize/',
         transform: function (options) {
             if (!IG._client_id) {
                 IG.log('IG.login() called before claling IG.init().');
@@ -696,7 +694,7 @@ IG.provide('UIServer.Methods', {
         }
     },
     'auth.status': {
-        url: 'oauth/login_status',
+        url: IG.getDomain('https_com') + 'oauth/login_status/',
         transform: function (options) {
             var callback = options.callback,
                 id = options.id;
