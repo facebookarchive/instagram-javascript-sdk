@@ -22,7 +22,8 @@ SDK Usage Examples
     IG.init({
         client_id: YOUR_CLIENT_ID,
         check_status: true, // check and load active session
-        cookie: true // persist a session via cookie
+        cookie: true, // persist a session via cookie
+        channelUrl: http://<domain>/channel.html
     });
 
     // client side access_token flow (implicit)

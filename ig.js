@@ -315,7 +315,7 @@ if (!window.IG) {
         _origin: null,
         _transport: null,
         _callbacks: {},
-        init: function () {
+        init: function (channelUrl) {
             if (IG.XD._origin) {
                 IG.log('XD.init called with "XD._origin" already set. Returning.');
                 return;
@@ -329,7 +329,7 @@ if (!window.IG) {
             } else {
                 IG.log('Using "fragment" as XD transport.');
                 IG.XD._transport = 'fragment';
-                IG.XD.Fragment._channelUrl = window.location.toString();
+                IG.XD.Fragment._channelUrl = channelUrl || window.location.toString();
             }
         },
         resolveRelation: function (relation) {
@@ -777,7 +777,7 @@ if (!window.IG) {
             IG._client_id = settings.client_id;
             IG._logging = settings.logging || (typeof settings.logging === 'undefined' && window.location.toString().indexOf('ig_debug=1') > 0);
 
-            IG.XD.init();
+            IG.XD.init(settings.channelUrl);
 
             if (IG._client_id) {
                 IG.Cookie.setEnabled(settings.cookie);
