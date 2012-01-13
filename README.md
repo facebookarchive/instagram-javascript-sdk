@@ -47,7 +47,7 @@ The channel file helps addresses issues with cross domain communication in certa
 
 Include the sdk in your channel.html file.
 
-<script src="//path/to/ig.js" />
+&lt;script src="//path/to/ig.js" /&gt;
 
 
 Contributing
