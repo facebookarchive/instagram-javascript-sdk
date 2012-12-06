@@ -121,6 +121,11 @@ if (!window.IG) {
                 i;
 
             for (i = 0; i < pairs.length; i++) {
+                if (pairs[i].match(/\=/g) === null)
+                    pairs[i-1] += '&' + pairs[i];
+            }
+
+            for (i = 0; i < pairs.length; i++) {
                 pair = pairs[i].split('=', 2);
                 if (pair && pair[0]) {
                     object[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1] || '');
