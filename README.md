@@ -22,7 +22,8 @@ SDK Usage Examples
     IG.init({
         client_id: YOUR_CLIENT_ID,
         check_status: true, // check and load active session
-        cookie: true // persist a session via cookie
+        cookie: true, // persist a session via cookie
+        channelUrl: http://<domain>/channel.html // You have to set your website in the client settings to match this url
     });
 
     // client side access_token flow (implicit)
@@ -39,6 +40,15 @@ SDK Usage Examples
             // for access_token exchange
         }
     }, {response_type: 'code', scope: ['comments', 'likes']});
+
+Channel File Example
+------------------
+The channel file helps addresses issues with cross domain communication in certain browsers.
+
+Include the sdk in your channel.html file.
+
+&lt;script src="//path/to/ig.js" /&gt;
+
 
 Contributing
 ------------
