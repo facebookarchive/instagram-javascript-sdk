@@ -1,4 +1,4 @@
-The Instagram JavaScript SDK
+The Instagram JavaScript Library SDK
 ============================
 A JavaScript library for the Instagram REST and Search APIs
 (currently supports authentication, authorization and persisting sessions)
