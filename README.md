@@ -76,6 +76,8 @@ Submitting a Pull Request
 5. Commit and push your changes.
 6. Submit a pull request.
 
+This is a demonstration purpose project and can be implemented in real life scenarios.
+Thanks and regards.
 
 Copyright
 ---------
